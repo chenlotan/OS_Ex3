@@ -17,6 +17,7 @@ MODULE_LICENSE("GPL");
 
 #include "message_slot.h"
 
+/*===================================== CHANNEL AND SLOT STRUCTS AND FUNCTIONS ==============================================*/
 
 struct channel
 {
@@ -26,6 +27,7 @@ struct channel
     struct channel* next_channel;
 };
 
+/**** STRUCT FOR SAVING OPEN SLOTS ****/
 static struct channel* slots[256]; 
 
 int create_new_channel(struct channel* new_channel, int channel_num){
@@ -96,7 +98,8 @@ int delete_channels_list(struct channel* channel){
 }
 
 
-//================== DEVICE FUNCTIONS ===========================
+
+/*=========================================== DEVICE FUNCTIONS =================================================*/
 static int device_open( struct inode* inode,
                         struct file*  file )
 {
@@ -255,7 +258,8 @@ static long device_ioctl( struct   file* file,
   return -EINVAL;
 }
 
-//==================== DEVICE SETUP =============================
+
+/*=========================================== DEVICE SETUP ===================================================*/
 
 // This structure will hold the functions to be called
 // when a process does something to the device we created
