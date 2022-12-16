@@ -1,0 +1,20 @@
+make
+sudo insmod message_slot.ko
+sudo mknod /dev/msgslot1 c 235 1
+sudo chmod o+rw /dev/msgslot1
+
+sudo rmmod message_slot
+sudo rm /dev/msgslot1
+make clean
+
+gcc -O3 -Wall -std=c11 message_sender.c -o message_sender
+gcc -O3 -Wall -std=c11 message_reader.c -o message_reader
+
+./message_sender /dev/msgslot1 4 "Hello this is channel 4"
+./message_reader /dev/msgslot1 4
+
+curl -o test_integration.py https://gist.githubusercontent.com/natexcvi/ceb4d019a976bd16761905c55dcc4ea3/raw/48119f26286ac0e2adcd4e57427083266e122821/test_integration.py
+
+sudo apt update && sudo apt install python3 python3-pip
+pip3 install pytest
+python3 -m pytest --verbosity=1
