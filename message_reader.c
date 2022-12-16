@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <sys/ioctl.h>
 
 #include "message_slot.h"
 
@@ -22,11 +22,6 @@ int main(int argc, char *argv[]){
     }
 
     channel_id = strtol(argv[2], &p, 10);
-    if (channel_id <= 0)
-    {
-        perror("wrong channel_id");
-        exit(1);
-    }
 
     fd = open(argv[1], O_RDWR);
     if (fd < 0){
@@ -56,7 +51,7 @@ int main(int argc, char *argv[]){
         exit(1);
     }
     else{
-        write(STDOUT_FILENO, buffer, succ);
+        if (write(STDOUT_FILENO, buffer, succ) != succ) exit(1);
     }
 
     free(buffer);

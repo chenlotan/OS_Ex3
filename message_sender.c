@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 #include "message_slot.h"
 
@@ -20,12 +21,6 @@ int main(int argc, char *argv[]){
     }
 
     channel_id = strtol(argv[2], &p, 10);
-
-    if (channel_id <= 0)
-    {
-        perror("wrong channel_id");
-        exit(1);
-    }
 
     i = strlen(argv[3]);
 

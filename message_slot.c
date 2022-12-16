@@ -179,12 +179,12 @@ static ssize_t device_read( struct file* file,
     printk("$ channel_id to read is %ld, in slot %d\n", channel_num, iminor(file->f_inode));
     channel = find_channel(file, channel_num);
 
-
     /* ERROR CASES */
 
     if (channel == NULL) return -EWOULDBLOCK;                                               /* ERROR: no message exists on channel (channel was not created yet) */
     if ((channel->length_message == 0) || (channel->message == NULL)) return -EWOULDBLOCK; /* ERROR: no message exists on channel */
     if (length < channel->length_message) return -ENOSPC;                                 /* ERROR: provided buffer is too small */
+    if (buffer == NULL) return -EINVAL;
 
     for( i = 0; i < channel->length_message; ++i ) {
         put_user(channel->message[i], &buffer[i]);
@@ -233,6 +233,8 @@ static ssize_t device_write( struct file*       file,
     }
 
     if ((length == 0) || (length > BUF_LEN)) return -EMSGSIZE;
+    if (buffer == NULL) return -EINVAL;
+
 
     if (channel->message != NULL) kfree(channel->message);
 
