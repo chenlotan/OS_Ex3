@@ -52,7 +52,7 @@ struct channel* find_channel(struct file* file, unsigned long channel_num)
   while (curr != NULL)
   {
     if (curr->channel_id == channel_num){
-      printk("channel_id = %ld\n", curr->channel_id);
+      printk("in find channel - channel_id = %ld\n", curr->channel_id);
       return curr;
     } 
     curr = curr->next_channel;
@@ -90,14 +90,16 @@ int delete_channels_list(struct channel* channel){
   while (channel->next_channel != NULL){
     tmp = channel->next_channel;
     channel->next_channel = tmp->next_channel;
+    printk("free chanel_id %ld", tmp->channel_id);
     kfree(tmp);
   }
 
+  printk("free chanel_id %ld", channel->channel_id);
   kfree(channel);
   return SUCCESS; 
 }
 
-
+static int device_open_flag = 0;
 
 /*=========================================== DEVICE FUNCTIONS =================================================*/
 static int device_open( struct inode* inode,
@@ -108,9 +110,14 @@ static int device_open( struct inode* inode,
     int succ, minor;
     printk("Invoking device_open(%p)\n", file);
 
+    if (device_open_flag == 1){
+      printk("The device if used by othe proccess");
+      return -EBUSY;
+    }
+
     minor = iminor(file->f_inode);
-    printk("minor = %d\n", minor);
-    printk("privat_data = %p\n", file->private_data);
+    printk("OPEN file to slot %d\n", minor);
+
 
     if (slots[minor] == NULL){
       new_channel = (struct channel*) kmalloc(sizeof(struct channel), GFP_KERNEL);
@@ -134,8 +141,21 @@ static int device_open( struct inode* inode,
       printk("channel_id = %ld\n", channel->channel_id);
       channel = channel->next_channel;
     }
+
+    // device_open_flag++;
     printk("### OPEN end successfully ###\n");
     return SUCCESS;
+}
+
+//---------------------------------------------------------------
+static int device_release( struct inode* inode,
+                           struct file*  file)
+{
+  printk("Invoking device_release(%p,%p)\n", inode, file);
+
+  // ready for our next caller
+  --device_open_flag;
+  return SUCCESS;
 }
 
 //---------------------------------------------------------------
@@ -269,7 +289,7 @@ struct file_operations Fops = {
   .write          = device_write,
   .open           = device_open,
   .unlocked_ioctl = device_ioctl,
-  // .release        = device_release,
+  .release        = device_release,
 };
 
 //---------------------------------------------------------------
@@ -308,8 +328,10 @@ static void __exit simple_cleanup(void)
     unregister_chrdev(MAJOR_NUM, DEVICE_RANGE_NAME);
 
     for (i=0; i<256; i++){
-        delete_channels_list(slots[i]);
+      printk("free channel list of slot %d", i);
+      delete_channels_list(slots[i]);
     }
+    printk(" ### FREE MEMORY end successfully ### ");
 
 }
 
