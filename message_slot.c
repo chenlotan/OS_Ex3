@@ -169,7 +169,7 @@ static ssize_t device_read( struct file* file,
         succ  = put_user(channel->message[i], &buffer[i]);
     }
 
-    if (succ == -1){
+    if (succ != 0){
       return succ;
     }
 
@@ -201,7 +201,7 @@ static ssize_t device_write( struct file*       file,
         get_succ = get_user(channel->message[i], &buffer[i]);
     }
 
-    if (get_succ == -1){
+    if (get_succ != 0){
       return get_succ;
     }
 
