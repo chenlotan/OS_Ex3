@@ -43,16 +43,10 @@ struct channel* find_channel(struct file* file, unsigned long channel_num)
 {
   struct channel* curr;
   curr = slots[iminor(file->f_inode)];
-  printk("curr was iniitialized");
-
-  if (curr == NULL){
-    printk("curr == NULL \n");
-  }
 
   while (curr != NULL)
   {
     if (curr->channel_id == channel_num){
-      printk("in find channel - channel_id = %ld\n", curr->channel_id);
       return curr;
     } 
     curr = curr->next_channel;
@@ -68,7 +62,9 @@ int add_channel(struct channel* first_channel, struct channel *new_channel, unsi
   curr = first_channel;
   if (curr == NULL){
     printk("channel list wasnt initialized\n");
+    return -1;
   }
+
   succ = create_new_channel(new_channel, channel_num);
   if (succ != 0) {
     printk("couldn't create new channel\n");
@@ -85,16 +81,21 @@ int add_channel(struct channel* first_channel, struct channel *new_channel, unsi
 
 int delete_channels_list(struct channel* channel){
   struct channel* tmp;
+
   if (channel == NULL) return SUCCESS;
 
   while (channel->next_channel != NULL){
     tmp = channel->next_channel;
     channel->next_channel = tmp->next_channel;
-    printk("free chanel_id %ld", tmp->channel_id);
+    if (tmp->message != NULL){
+      kfree(tmp->message);
+    }
     kfree(tmp);
   }
 
-  printk("free chanel_id %ld", channel->channel_id);
+  if (channel->message != NULL){
+    kfree(channel->message);
+  }
   kfree(channel);
   return SUCCESS; 
 }
@@ -106,43 +107,39 @@ static int device_open( struct inode* inode,
                         struct file*  file )
 {
     
-    struct channel* new_channel, *channel;
+    struct channel* new_channel;
     int succ, minor;
     printk("Invoking device_open(%p)\n", file);
 
     if (device_open_flag == 1){
-      printk("The device if used by othe proccess");
       return -EBUSY;
     }
 
     minor = iminor(file->f_inode);
-    printk("OPEN file to slot %d\n", minor);
-
 
     if (slots[minor] == NULL){
       new_channel = (struct channel*) kmalloc(sizeof(struct channel), GFP_KERNEL);
       if (!new_channel) {
-        printk("kmalloc FAILED\n");
+        printk("ERROR: kmalloc FAILED\n");
         return -1;
         } 
       succ = create_new_channel(new_channel, -1);
       if (succ != 0) {
-          printk("couldn't create new channel\n");
+          printk("ERROR: couldn't create new channel\n");
           return -1; 
           }
-        printk("channel was created successfully\n");
 
       slots[minor] = new_channel;
     }
 
-    printk("------CHANNEL LIST OPEN----------");
+    /* printk("------CHANNEL LIST OPEN----------");
     channel = slots[minor];
     while(channel!=NULL){
       printk("channel_id = %ld\n", channel->channel_id);
       channel = channel->next_channel;
-    }
+    }*/
 
-    // device_open_flag++;
+    device_open_flag++;
     printk("### OPEN end successfully ###\n");
     return SUCCESS;
 }
@@ -166,28 +163,31 @@ static ssize_t device_read( struct file* file,
                             size_t       length,
                             loff_t*      offset )
 {
-    unsigned long channel_num;
+    // unsigned long channel_num;
     struct channel* channel;
     ssize_t i;
+    int succ;
 
     printk("Invoking device_read(%p)\n", file);
 
-    channel_num = (unsigned long) file->private_data;
+    channel = (struct channel*) file->private_data;
 
-    if (channel_num == 0) return -EINVAL; /* ERROR: no channel has been set on fd */
+    if (channel == NULL) return -EINVAL; /* ERROR: no channel has been set on fd */
 
-    printk("$ channel_id to read is %ld, in slot %d\n", channel_num, iminor(file->f_inode));
-    channel = find_channel(file, channel_num);
+    // printk("$ channel_id to read is %ld, in slot %d\n", channel->channel_id, iminor(file->f_inode));
 
     /* ERROR CASES */
 
-    if (channel == NULL) return -EWOULDBLOCK;                                               /* ERROR: no message exists on channel (channel was not created yet) */
     if ((channel->length_message == 0) || (channel->message == NULL)) return -EWOULDBLOCK; /* ERROR: no message exists on channel */
     if (length < channel->length_message) return -ENOSPC;                                 /* ERROR: provided buffer is too small */
     if (buffer == NULL) return -EINVAL;
 
     for( i = 0; i < channel->length_message; ++i ) {
-        put_user(channel->message[i], &buffer[i]);
+        succ  = put_user(channel->message[i], &buffer[i]);
+    }
+
+    if (succ == -1){
+      return succ;
     }
 
     printk("### READ end successfully ###\n");
@@ -203,38 +203,18 @@ static ssize_t device_write( struct file*       file,
                              loff_t*            offset)
 {
     ssize_t i;
-    unsigned long channel_num;
-    int add_succ;
+    int get_succ;
     struct channel* channel;
 
     printk("Invoking device_write(%p,%ld)\n", file, length);
 
-    channel_num = (unsigned long) file->private_data;
-    printk("$ channel_id to write is %ld, in slot %d\n", channel_num, iminor(file->f_inode));
+    channel = (struct channel*) file->private_data;
+    if (channel == NULL) return -EINVAL;
 
-    if (channel_num == 0) return -EINVAL;
-
-    channel = find_channel(file, channel_num);
-
-/* If the channel is not intialized, add channel to slot */
-    
-    if (channel == NULL){
-      printk("channel is NULL\n");
-      channel = (struct channel*) kmalloc(sizeof(struct channel), GFP_KERNEL);
-      if (!channel) {
-        printk("kmalloc FAILED\n");
-        return -1;
-        } 
-      add_succ = add_channel(slots[iminor(file->f_inode)], channel, channel_num);
-      if (add_succ != 0) {
-        printk("Failed openning channel on write");
-        return -1; 
-        }
-    }
+    // printk("$ channel_id to write is %ld, in slot %d\n", channel->channel_id, iminor(file->f_inode));
 
     if ((length == 0) || (length > BUF_LEN)) return -EMSGSIZE;
     if (buffer == NULL) return -EINVAL;
-
 
     if (channel->message != NULL) kfree(channel->message);
 
@@ -242,17 +222,16 @@ static ssize_t device_write( struct file*       file,
     if (channel->message == NULL) return -1;
 
     for( i = 0; i < length; ++i ) {
-        get_user(channel->message[i], &buffer[i]);
+        get_succ = get_user(channel->message[i], &buffer[i]);
+    }
+
+    if (get_succ == -1){
+      return get_succ;
     }
 
     channel->length_message = i;
     printk("MESSEGE= %s\n", channel->message);
 
-    channel = slots[iminor(file->f_inode)];
-    while(channel!=NULL){
-      printk("channel_id = %ld\n", channel->channel_id);
-      channel = channel->next_channel;
-    }
     printk("### WRITE end successfully ###\n");
 
     return i;
@@ -263,17 +242,34 @@ static long device_ioctl( struct   file* file,
                           unsigned int   ioctl_command_id,
                           unsigned long  ioctl_param )
 {
-   printk("Invoking device_ioctl(%p,%d,%ld)\n", file, ioctl_command_id, ioctl_param);
+  struct channel* channel;
+  int add_succ;
+  printk("Invoking device_ioctl(%p,%d,%ld)\n", file, ioctl_command_id, ioctl_param);
 
   if (MSG_SLOT_CHANNEL == ioctl_command_id)
   {
-    printk("MSG_SLOT_CHANNEL is the command\n");
     if (ioctl_param == 0) return -EINVAL;
 
+/* If the channel is not intialized, add channel to slot */
+    channel = find_channel(file, ioctl_param);
+
+    if (channel == NULL){
+      printk("channel is NULL\n");
+      channel = (struct channel*) kmalloc(sizeof(struct channel), GFP_KERNEL);
+      if (!channel) {
+        printk("ERROR: kmalloc FAILED\n");
+        return -1;
+        } 
+      add_succ = add_channel(slots[iminor(file->f_inode)], channel, ioctl_param);
+      if (add_succ != 0) {
+        printk("ERROR: Failed openning channel");
+        return -1; 
+        }
+    }
+
     /* Set file channel id to be the one given in arg*/
-    file->private_data = (void *) ioctl_param; 
-    printk("file->private is now %p\n", file->private_data);
-    
+    file->private_data = (void *) channel; 
+  
     return SUCCESS;
   }
 
