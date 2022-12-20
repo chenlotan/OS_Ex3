@@ -61,13 +61,13 @@ int add_channel(struct channel* first_channel, struct channel *new_channel, unsi
 
   curr = first_channel;
   if (curr == NULL){
-    printk("channel list wasnt initialized\n");
+    printk("ERROR: channel list wasnt initialized\n");
     return -1;
   }
 
   succ = create_new_channel(new_channel, channel_num);
   if (succ != 0) {
-    printk("couldn't create new channel\n");
+    printk("ERROR: couldn't create new channel\n");
     return -1;}
 
   while (curr->next_channel != NULL)
@@ -109,7 +109,6 @@ static int device_open( struct inode* inode,
     
     struct channel* new_channel;
     int succ, minor;
-    printk("Invoking device_open(%p)\n", file);
 
     if (device_open_flag == 1){
       return -EBUSY;
@@ -132,49 +131,33 @@ static int device_open( struct inode* inode,
       slots[minor] = new_channel;
     }
 
-    /* printk("------CHANNEL LIST OPEN----------");
-    channel = slots[minor];
-    while(channel!=NULL){
-      printk("channel_id = %ld\n", channel->channel_id);
-      channel = channel->next_channel;
-    }*/
-
     device_open_flag++;
-    printk("### OPEN end successfully ###\n");
     return SUCCESS;
 }
 
-//---------------------------------------------------------------
+
 static int device_release( struct inode* inode,
                            struct file*  file)
 {
-  printk("Invoking device_release(%p,%p)\n", inode, file);
 
-  // ready for our next caller
+  /* ready for our next caller */
   --device_open_flag;
   return SUCCESS;
 }
 
-//---------------------------------------------------------------
-// a process which has already opened
-// the device file attempts to read from it
+
 static ssize_t device_read( struct file* file,
                             char __user* buffer,
                             size_t       length,
                             loff_t*      offset )
 {
-    // unsigned long channel_num;
     struct channel* channel;
     ssize_t i;
     int succ;
 
-    printk("Invoking device_read(%p)\n", file);
-
     channel = (struct channel*) file->private_data;
 
     if (channel == NULL) return -EINVAL; /* ERROR: no channel has been set on fd */
-
-    // printk("$ channel_id to read is %ld, in slot %d\n", channel->channel_id, iminor(file->f_inode));
 
     /* ERROR CASES */
 
@@ -190,13 +173,10 @@ static ssize_t device_read( struct file* file,
       return succ;
     }
 
-    printk("### READ end successfully ###\n");
     return i;
 }
 
-//---------------------------------------------------------------
-// a processs which has already opened
-// the device file attempts to write to it
+
 static ssize_t device_write( struct file*       file,
                              const char __user* buffer,
                              size_t             length,
@@ -206,12 +186,8 @@ static ssize_t device_write( struct file*       file,
     int get_succ;
     struct channel* channel;
 
-    printk("Invoking device_write(%p,%ld)\n", file, length);
-
     channel = (struct channel*) file->private_data;
     if (channel == NULL) return -EINVAL;
-
-    // printk("$ channel_id to write is %ld, in slot %d\n", channel->channel_id, iminor(file->f_inode));
 
     if ((length == 0) || (length > BUF_LEN)) return -EMSGSIZE;
     if (buffer == NULL) return -EINVAL;
@@ -230,9 +206,6 @@ static ssize_t device_write( struct file*       file,
     }
 
     channel->length_message = i;
-    printk("MESSEGE= %s\n", channel->message);
-
-    printk("### WRITE end successfully ###\n");
 
     return i;
 }
@@ -244,7 +217,6 @@ static long device_ioctl( struct   file* file,
 {
   struct channel* channel;
   int add_succ;
-  printk("Invoking device_ioctl(%p,%d,%ld)\n", file, ioctl_command_id, ioctl_param);
 
   if (MSG_SLOT_CHANNEL == ioctl_command_id)
   {
@@ -254,7 +226,6 @@ static long device_ioctl( struct   file* file,
     channel = find_channel(file, ioctl_param);
 
     if (channel == NULL){
-      printk("channel is NULL\n");
       channel = (struct channel*) kmalloc(sizeof(struct channel), GFP_KERNEL);
       if (!channel) {
         printk("ERROR: kmalloc FAILED\n");
@@ -326,10 +297,8 @@ static void __exit simple_cleanup(void)
     unregister_chrdev(MAJOR_NUM, DEVICE_RANGE_NAME);
 
     for (i=0; i<256; i++){
-      printk("free channel list of slot %d", i);
       delete_channels_list(slots[i]);
     }
-    printk(" ### FREE MEMORY end successfully ### ");
 
 }
 
